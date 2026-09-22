@@ -1,0 +1,64 @@
+### Level 19 - try the API (VS Code "REST Client" extension: click "Send Request")
+### Start it first:  cd app && npm run api
+
+### health
+GET http://localhost:3000/health
+
+### list, page 1 of 3, sorted by salary desc
+GET http://localhost:3000/employees?limit=3&sort=-salary
+
+### filter: department 2 with salary >= 60000
+GET http://localhost:3000/employees?departmentId=2&minSalary=60000
+
+### keyset pagination: employees after _id 105, 3 at a time
+GET http://localhost:3000/employees/after/105?limit=3
+
+### one employee
+GET http://localhost:3000/employees/106
+
+### not found -> 404
+GET http://localhost:3000/employees/999
+
+### bad id -> 400
+GET http://localhost:3000/employees/not-an-id
+
+### create -> 201
+POST http://localhost:3000/employees
+Content-Type: application/json
+
+{ "_id": 201, "name": "Isha", "salary": 52000, "departmentId": 3, "email": "isha@example.com", "skills": ["Recruiting"] }
+
+### duplicate -> 409
+POST http://localhost:3000/employees
+Content-Type: application/json
+
+{ "_id": 201, "name": "Isha again", "salary": 1 }
+
+### operator injection attempt -> 400 (never reaches the database)
+POST http://localhost:3000/employees
+Content-Type: application/json
+
+{ "name": "Evil", "salary": 1, "$where": "1" }
+
+### validation -> 400
+POST http://localhost:3000/employees
+Content-Type: application/json
+
+{ "name": "X", "salary": -5 }
+
+### update -> 200
+PATCH http://localhost:3000/employees/201
+Content-Type: application/json
+
+{ "salary": 55000, "city": "Pune", "addSkill": "Excel" }
+
+### injection in a filter value: Express 5's default ("simple") query parser keeps "city[$ne]" as a literal key,
+### so the filter is simply ignored (200, unfiltered). With Express 4 / the "extended" parser it becomes an object
+### and our scalar() check answers 400. Either way it never reaches the database as an operator.
+GET http://localhost:3000/employees?city[$ne]=x
+
+### aggregation report
+GET http://localhost:3000/stats/departments
+
+### delete -> 204
+DELETE http://localhost:3000/employees/201

@@ -1,0 +1,18 @@
+{
+  "name": "mongodb-practice-level19",
+  "version": "1.0.0",
+  "description": "Level 19 - Node.js driver, Mongoose and an Express API on companyDB",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "driver": "node 01_driver_basics.js",
+    "mongoose": "node 02_mongoose_models.js",
+    "api": "node 03_express_api/server.js",
+    "exercises": "node Exercises.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "mongodb": "^6.17.0",
+    "mongoose": "^8.16.0"
+  }
+}

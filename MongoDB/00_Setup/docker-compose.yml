@@ -1,0 +1,52 @@
+# ============================================================
+#  00_SETUP | docker-compose.yml  -  MongoDB for practice
+# ------------------------------------------------------------
+#  One MongoDB 8 node started as a ONE-MEMBER REPLICA SET (rs0).
+#  Why a replica set and not a plain standalone?
+#    - Transactions  (Level 14) need a replica set
+#    - Change streams (Level 17) need a replica set
+#    - It behaves exactly like production (oplog, rs.status(), ...)
+#  Plus mongo-express, a small web UI on http://localhost:8081
+#
+#  START :  docker compose up -d          (run inside 00_Setup/)
+#  STOP  :  docker compose stop           (data is kept in the volume)
+#  RESET :  docker compose down -v        (deletes the data volume too)
+#  SHELL :  mongosh                       (connects to localhost:27017)
+#  LOGS  :  docker compose logs -f mongo
+# ============================================================
+services:
+  mongo:
+    image: mongo:8
+    container_name: mongo-practice
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-practice-data:/data/db
+    healthcheck:
+      # The health check ALSO initiates the replica set the first time it runs
+      # (rs.initiate() is a no-op error once the set exists). The host name is
+      # "localhost" so that mongosh / Compass / Node.js on Windows can connect.
+      test: >
+        mongosh --quiet --eval
+        "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0', members:[{_id:0, host:'localhost:27017'}]}).ok }"
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo-express-practice
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongo:27017/?directConnection=true
+      ME_CONFIG_BASICAUTH: "false"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo-practice-data:

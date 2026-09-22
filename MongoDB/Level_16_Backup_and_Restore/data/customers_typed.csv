@@ -1,0 +1,4 @@
+_id.int32(),name.string(),email.string(),city.string(),createdDate.date(2006-01-02)
+9,Ishaan Verma,ishaan@example.com,Jaipur,2025-07-01
+10,Jaya Rao,jaya@example.com,Hyderabad,2025-07-15
+11,Kabir Das,,Kolkata,2025-08-02

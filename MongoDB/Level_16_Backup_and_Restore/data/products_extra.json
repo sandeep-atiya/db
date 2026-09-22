@@ -1,0 +1,5 @@
+[
+  { "_id": 12, "name": "Docking Station", "category": "Electronics", "price": 6500, "stock": 8,  "tags": ["computer", "accessory"], "ratings": [4, 5] },
+  { "_id": 13, "name": "USB Hub",         "category": "Electronics", "price": 1200, "stock": 40, "tags": ["accessory"],             "ratings": [] },
+  { "_id": 2,  "name": "Mouse",           "category": "Electronics", "price": 1100, "stock": 90, "tags": ["accessory"],             "ratings": [4, 4], "launched": { "$date": "2024-06-01T00:00:00Z" } }
+]

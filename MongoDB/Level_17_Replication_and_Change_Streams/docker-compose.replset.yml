@@ -1,0 +1,58 @@
+# ============================================================
+#  LEVEL 17 | docker-compose.replset.yml - a REAL 3-member replica set (rs3)
+#  on ports 27021 / 27022 / 27023, independent of the main practice server.
+#
+#  Members are configured with the host name "host.docker.internal", which
+#  resolves both inside the containers (to the Windows host) and on the host
+#  itself (Docker Desktop adds it to the hosts file) - so mongosh, Compass and
+#  Node.js on Windows can connect to the WHOLE set and follow failovers.
+#
+#  START :  docker compose -f docker-compose.replset.yml up -d      (run inside Level_17_.../)
+#           (the "rs-init" container initiates the set once and exits)
+#  SHELL :  mongosh "mongodb://host.docker.internal:27021,host.docker.internal:27022,host.docker.internal:27023/?replicaSet=rs3"
+#  STATUS:  mongosh --port 27021 --eval "rs.status().members.map(m => m.name + ' ' + m.stateStr)"
+#  KILL THE PRIMARY (failover drill):   docker stop mongo-rs1     ... later:   docker start mongo-rs1
+#  STOP  :  docker compose -f docker-compose.replset.yml down -v
+# ============================================================
+services:
+  mongo-rs1:
+    image: mongo:8
+    container_name: mongo-rs1
+    command: ["mongod", "--replSet", "rs3", "--bind_ip_all", "--port", "27017"]
+    ports: ["27021:27017"]
+    volumes: ["rs1-data:/data/db"]
+  mongo-rs2:
+    image: mongo:8
+    container_name: mongo-rs2
+    command: ["mongod", "--replSet", "rs3", "--bind_ip_all", "--port", "27017"]
+    ports: ["27022:27017"]
+    volumes: ["rs2-data:/data/db"]
+  mongo-rs3:
+    image: mongo:8
+    container_name: mongo-rs3
+    command: ["mongod", "--replSet", "rs3", "--bind_ip_all", "--port", "27017"]
+    ports: ["27023:27017"]
+    volumes: ["rs3-data:/data/db"]
+
+  rs-init:
+    image: mongo:8
+    container_name: mongo-rs-init
+    depends_on: [mongo-rs1, mongo-rs2, mongo-rs3]
+    restart: "no"
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        for i in $(seq 1 30); do mongosh --host mongo-rs1 --quiet --eval "db.adminCommand('ping').ok" >/dev/null 2>&1 && break; sleep 2; done
+        mongosh --host mongo-rs1 --quiet --eval '
+          try { rs.status(); print("replica set already initiated"); }
+          catch (e) {
+            printjson(rs.initiate({ _id: "rs3", members: [
+              { _id: 0, host: "host.docker.internal:27021", priority: 2 },
+              { _id: 1, host: "host.docker.internal:27022", priority: 1 },
+              { _id: 2, host: "host.docker.internal:27023", priority: 1 } ] }));
+          }'
+
+volumes:
+  rs1-data:
+  rs2-data:
+  rs3-data:

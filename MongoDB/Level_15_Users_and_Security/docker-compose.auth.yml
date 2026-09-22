@@ -1,0 +1,35 @@
+# ============================================================
+#  LEVEL 15 | docker-compose.auth.yml - a SECOND MongoDB with
+#  ACCESS CONTROL ENABLED, on port 27018 (the main practice
+#  server on 27017 stays untouched).
+#
+#  The official image creates the root user from these variables
+#  and starts mongod with --auth automatically.
+#
+#  START :  docker compose -f docker-compose.auth.yml up -d     (run inside Level_15_Users_and_Security/)
+#  SHELL :  mongosh "mongodb://admin:Admin%23123@localhost:27018/?authSource=admin"
+#           (the password is Admin#123 - the # must be URL-encoded as %23)
+#  NO CREDENTIALS -> connects, but every command fails with "requires authentication":
+#           mongosh --port 27018 --eval "db.getSiblingDB('companyDB').employees.findOne()"
+#  STOP  :  docker compose -f docker-compose.auth.yml down -v   (-v also removes the data volume)
+# ============================================================
+services:
+  mongo-auth:
+    image: mongo:8
+    container_name: mongo-auth-practice
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: "Admin#123"
+      MONGO_INITDB_DATABASE: companyDB
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-auth-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "-u", "admin", "-p", "Admin#123", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  mongo-auth-data:

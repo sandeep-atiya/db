@@ -1,0 +1,69 @@
+# ============================================================
+#  LEVEL 18 | docker-compose.sharded.yml - a small SHARDED CLUSTER
+#     config server  cfgrs    (1 member)   host port 27031
+#     shard 1        shard1rs (1 member)   host port 27032
+#     shard 2        shard2rs (1 member)   host port 27033
+#     mongos router                        host port 27030   <- connect HERE
+#  (1-member replica sets keep the lab small; production uses 3+ each.)
+#
+#  All members are addressed as host.docker.internal:<port> so that the
+#  containers, mongos and your Windows tools all resolve the same names.
+#
+#  START :  docker compose -f docker-compose.sharded.yml up -d       (inside Level_18_Sharding/)
+#           the "sh-init" container initiates the replica sets and adds the shards (~30 s)
+#  SHELL :  mongosh --port 27030            (mongos)
+#  CHECK :  mongosh --port 27030 --quiet --eval "sh.status()"
+#  STOP  :  docker compose -f docker-compose.sharded.yml down -v
+# ============================================================
+services:
+  cfgsvr:
+    image: mongo:8
+    container_name: mongo-cfgsvr
+    command: ["mongod", "--configsvr", "--replSet", "cfgrs", "--bind_ip_all", "--port", "27017"]
+    ports: ["27031:27017"]
+    volumes: ["cfg-data:/data/configdb"]
+  shard1:
+    image: mongo:8
+    container_name: mongo-shard1
+    command: ["mongod", "--shardsvr", "--replSet", "shard1rs", "--bind_ip_all", "--port", "27017"]
+    ports: ["27032:27017"]
+    volumes: ["shard1-data:/data/db"]
+  shard2:
+    image: mongo:8
+    container_name: mongo-shard2
+    command: ["mongod", "--shardsvr", "--replSet", "shard2rs", "--bind_ip_all", "--port", "27017"]
+    ports: ["27033:27017"]
+    volumes: ["shard2-data:/data/db"]
+  mongos:
+    image: mongo:8
+    container_name: mongo-mongos
+    depends_on: [cfgsvr, shard1, shard2]
+    command: ["mongos", "--configdb", "cfgrs/host.docker.internal:27031", "--bind_ip_all", "--port", "27017"]
+    ports: ["27030:27017"]
+    restart: unless-stopped
+
+  sh-init:
+    image: mongo:8
+    container_name: mongo-sh-init
+    depends_on: [cfgsvr, shard1, shard2, mongos]
+    restart: "no"
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        wait_for() { for i in $(seq 1 40); do mongosh --host "$1" --quiet --eval "db.adminCommand('ping').ok" >/dev/null 2>&1 && return 0; sleep 2; done; echo "timeout $1"; return 1; }
+        wait_for cfgsvr; wait_for shard1; wait_for shard2
+        mongosh --host cfgsvr --quiet --eval 'try { rs.status() } catch (e) { rs.initiate({ _id: "cfgrs", configsvr: true, members: [ { _id: 0, host: "host.docker.internal:27031" } ] }) }'
+        mongosh --host shard1 --quiet --eval 'try { rs.status() } catch (e) { rs.initiate({ _id: "shard1rs", members: [ { _id: 0, host: "host.docker.internal:27032" } ] }) }'
+        mongosh --host shard2 --quiet --eval 'try { rs.status() } catch (e) { rs.initiate({ _id: "shard2rs", members: [ { _id: 0, host: "host.docker.internal:27033" } ] }) }'
+        sleep 10
+        wait_for mongos
+        mongosh --host mongos --quiet --eval '
+          const have = db.adminCommand({ listShards: 1 }).shards.map(s => s._id);
+          if (!have.includes("shard1rs")) printjson(sh.addShard("shard1rs/host.docker.internal:27032"));
+          if (!have.includes("shard2rs")) printjson(sh.addShard("shard2rs/host.docker.internal:27033"));
+          printjson(db.adminCommand({ listShards: 1 }).shards.map(s => s._id + " " + s.host));'
+
+volumes:
+  cfg-data:
+  shard1-data:
+  shard2-data:
